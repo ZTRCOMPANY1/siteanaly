@@ -11,20 +11,29 @@ import { firebaseConfig } from "./firebase-config.js";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+function getEl(id) {
+  const el = document.getElementById(id);
+  if (!el) {
+    throw new Error(`Elemento com id="${id}" não encontrado no dashboard.html`);
+  }
+  return el;
+}
+
 const els = {
-  siteFilter: document.getElementById("siteFilter"),
-  periodFilter: document.getElementById("periodFilter"),
-  refreshBtn: document.getElementById("refreshBtn"),
-  totalVisits: document.getElementById("totalVisits"),
-  onlineNow: document.getElementById("onlineNow"),
-  totalPages: document.getElementById("totalPages"),
-  totalCountries: document.getElementById("totalCountries"),
-  sitesList: document.getElementById("sitesList"),
-  pagesList: document.getElementById("pagesList"),
-  referrersList: document.getElementById("referrersList"),
-  browsersList: document.getElementById("browsersList"),
-  devicesList: document.getElementById("devicesList"),
-  countriesList: document.getElementById("countriesList")
+  siteFilter: getEl("siteFilter"),
+  periodFilter: getEl("periodFilter"),
+  refreshBtn: getEl("refreshBtn"),
+  totalVisits: getEl("totalVisits"),
+  onlineNow: getEl("onlineNow"),
+  totalPages: getEl("totalPages"),
+  totalCountries: getEl("totalCountries"),
+  sitesList: getEl("sitesList"),
+  pagesList: getEl("pagesList"),
+  referrersList: getEl("referrersList"),
+  browsersList: getEl("browsersList"),
+  devicesList: getEl("devicesList"),
+  countriesList: getEl("countriesList"),
+  chartCanvas: getEl("chart")
 };
 
 let chartInstance = null;
@@ -89,9 +98,11 @@ function renderList(el, items, empty = "Sem dados") {
 
 function renderChart(dayLabels, visitsMap) {
   const values = dayLabels.map(day => visitsMap[day] || 0);
-  const ctx = document.getElementById("chart").getContext("2d");
+  const ctx = els.chartCanvas.getContext("2d");
 
-  if (chartInstance) chartInstance.destroy();
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
 
   chartInstance = new Chart(ctx, {
     type: "line",
@@ -108,7 +119,9 @@ function renderChart(dayLabels, visitsMap) {
     options: {
       responsive: true,
       plugins: {
-        legend: { labels: { color: "#ffffff" } }
+        legend: {
+          labels: { color: "#ffffff" }
+        }
       },
       scales: {
         x: {
@@ -130,6 +143,7 @@ function buildSiteFilter(visits) {
   const current = els.siteFilter.value;
 
   els.siteFilter.innerHTML = `<option value="all">Todos os sites</option>`;
+
   for (const id of ids) {
     const opt = document.createElement("option");
     opt.value = id;
@@ -180,10 +194,10 @@ function updateDashboard() {
   const sites = countBy(visits, v => v.siteId);
   const daily = countBy(visits, v => v.day);
 
-  els.totalVisits.textContent = visits.length;
-  els.onlineNow.textContent = presence.length;
-  els.totalPages.textContent = Object.keys(pages).length;
-  els.totalCountries.textContent = Object.keys(countries).length;
+  els.totalVisits.textContent = String(visits.length);
+  els.onlineNow.textContent = String(presence.length);
+  els.totalPages.textContent = String(Object.keys(pages).length);
+  els.totalCountries.textContent = String(Object.keys(countries).length);
 
   renderList(els.sitesList, topEntries(sites, 10), "Sem sites");
   renderList(els.pagesList, topEntries(pages, 10), "Sem páginas");
@@ -196,21 +210,26 @@ function updateDashboard() {
 }
 
 async function loadAllData() {
-  const visitsSnap = await getDocs(query(collection(db, "analytics_visits"), orderBy("createdAt", "asc")));
-  const presenceSnap = await getDocs(collection(db, "analytics_presence"));
+  try {
+    const visitsSnap = await getDocs(
+      query(collection(db, "analytics_visits"), orderBy("createdAt", "asc"))
+    );
 
-  allVisits = visitsSnap.docs.map(doc => doc.data());
-  allPresence = presenceSnap.docs.map(doc => doc.data());
+    const presenceSnap = await getDocs(collection(db, "analytics_presence"));
 
-  buildSiteFilter(allVisits);
-  updateDashboard();
+    allVisits = visitsSnap.docs.map(doc => doc.data());
+    allPresence = presenceSnap.docs.map(doc => doc.data());
+
+    buildSiteFilter(allVisits);
+    updateDashboard();
+  } catch (error) {
+    console.error("Erro ao carregar analytics:", error);
+  }
 }
 
 els.siteFilter.addEventListener("change", updateDashboard);
 els.periodFilter.addEventListener("change", updateDashboard);
 els.refreshBtn.addEventListener("click", loadAllData);
 
-loadAllData().catch(console.error);
-setInterval(() => {
-  loadAllData().catch(console.error);
-}, 30000);
+loadAllData();
+setInterval(loadAllData, 30000);
