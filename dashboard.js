@@ -4,18 +4,27 @@ import {
   collection,
   getDocs,
   query,
-  orderBy
+  orderBy,
+  limit
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { firebaseConfig } from "./firebase-config.js";
+import { escapeHtml } from "./utils.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+const userProfile = JSON.parse(localStorage.getItem("sa_user_profile") || "null");
+const allowedSites = userProfile?.sites || [];
+
+function canSeeSite(siteId) {
+  if (!userProfile) return false;
+  if (userProfile.role === "owner") return true;
+  return allowedSites.includes(siteId);
+}
+
 function getEl(id) {
   const el = document.getElementById(id);
-  if (!el) {
-    throw new Error(`Elemento com id="${id}" não encontrado no dashboard.html`);
-  }
+  if (!el) throw new Error(`Elemento ${id} não encontrado`);
   return el;
 }
 
@@ -36,15 +45,10 @@ const els = {
   chartCanvas: getEl("chart")
 };
 
-let chartInstance = null;
 let allVisits = [];
 let allPresence = [];
-
-function todayAtMidnight() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+let allEvents = [];
+let chartInstance = null;
 
 function dateToYMD(date) {
   const y = date.getFullYear();
@@ -55,7 +59,8 @@ function dateToYMD(date) {
 
 function lastNDays(days) {
   const arr = [];
-  const now = todayAtMidnight();
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
 
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now);
@@ -75,21 +80,17 @@ function countBy(items, fn) {
   return map;
 }
 
-function topEntries(map, limit = 10) {
+function topEntries(map, limitN = 10) {
   return Object.entries(map)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
+    .slice(0, limitN)
     .map(([label, value]) => ({ label, value }));
 }
 
 function renderList(el, items, empty = "Sem dados") {
   el.innerHTML = "";
-
   if (!items.length) {
-    const li = document.createElement("li");
-    li.className = "empty";
-    li.textContent = empty;
-    el.appendChild(li);
+    el.innerHTML = `<li class="empty">${empty}</li>`;
     return;
   }
 
@@ -100,98 +101,32 @@ function renderList(el, items, empty = "Sem dados") {
   }
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function renderChart(dayLabels, visitsMap) {
-  const values = dayLabels.map(day => visitsMap[day] || 0);
-  const ctx = els.chartCanvas.getContext("2d");
-
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-
-  chartInstance = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: dayLabels,
-      datasets: [
-        {
-          label: "Visitas",
-          data: values,
-          borderWidth: 2,
-          tension: 0.28,
-          fill: true,
-          backgroundColor: "rgba(57,255,182,0.08)",
-          borderColor: "#39ffb6",
-          pointBackgroundColor: "#39ffb6",
-          pointBorderColor: "#39ffb6",
-          pointRadius: 3,
-          pointHoverRadius: 5
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          labels: {
-            color: "#eef4ff"
-          }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { color: "#9fb2d8" },
-          grid: { color: "rgba(255,255,255,0.06)" }
-        },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            color: "#9fb2d8",
-            precision: 0
-          },
-          grid: { color: "rgba(255,255,255,0.06)" }
-        }
-      }
-    }
-  });
-}
-
 function buildSiteFilter(visits) {
-  const ids = [...new Set(visits.map(v => v.siteId).filter(Boolean))].sort();
-  const currentValue = els.siteFilter.value;
+  const siteIds = [...new Set(visits.map(v => v.siteId).filter(Boolean))]
+    .filter(canSeeSite)
+    .sort();
 
+  const current = els.siteFilter.value;
   els.siteFilter.innerHTML = `<option value="all">Todos os sites</option>`;
 
-  for (const id of ids) {
+  for (const siteId of siteIds) {
     const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = id;
+    opt.value = siteId;
+    opt.textContent = siteId;
     els.siteFilter.appendChild(opt);
   }
 
-  if (ids.includes(currentValue)) {
-    els.siteFilter.value = currentValue;
-  }
+  if (siteIds.includes(current)) els.siteFilter.value = current;
 }
 
 function getFilteredVisits() {
   const selectedSite = els.siteFilter.value;
-  const period = Number(els.periodFilter.value);
-  const validDays = new Set(lastNDays(period));
+  const validDays = new Set(lastNDays(Number(els.periodFilter.value)));
 
-  return allVisits.filter(visit => {
-    const matchSite = selectedSite === "all" || visit.siteId === selectedSite;
-    const matchDay = validDays.has(visit.day);
-    return matchSite && matchDay;
+  return allVisits.filter(v => {
+    if (!canSeeSite(v.siteId)) return false;
+    if (selectedSite !== "all" && v.siteId !== selectedSite) return false;
+    return validDays.has(v.day);
   });
 }
 
@@ -199,65 +134,99 @@ function getFilteredPresence() {
   const selectedSite = els.siteFilter.value;
   const cutoff = Date.now() - 70000;
 
-  return allPresence.filter(item => {
-    const matchSite = selectedSite === "all" || item.siteId === selectedSite;
-    const isAlive = (item.updatedAtMs || 0) >= cutoff;
-    return matchSite && isAlive;
+  return allPresence.filter(p => {
+    if (!canSeeSite(p.siteId)) return false;
+    if (selectedSite !== "all" && p.siteId !== selectedSite) return false;
+    return (p.updatedAtMs || 0) >= cutoff;
+  });
+}
+
+function getCampaignLabel(v) {
+  if (v.utm?.campaign) {
+    return `${v.utm.source || "sem-source"} / ${v.utm.campaign}`;
+  }
+  return "Sem campanha";
+}
+
+function renderChart(days, dailyMap) {
+  const ctx = els.chartCanvas.getContext("2d");
+  const values = days.map(day => dailyMap[day] || 0);
+
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: days,
+      datasets: [{
+        label: "Visitas",
+        data: values,
+        borderColor: "#39ffb6",
+        backgroundColor: "rgba(57,255,182,0.08)",
+        fill: true,
+        borderWidth: 2,
+        tension: 0.28
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false
+    }
   });
 }
 
 function updateDashboard() {
   const visits = getFilteredVisits();
-  const onlinePresence = getFilteredPresence();
+  const online = getFilteredPresence();
   const days = lastNDays(Number(els.periodFilter.value));
 
-  const pages = countBy(visits, v => v.path || "/");
-  const countries = countBy(visits, v => v.country || "Desconhecido");
-  const browsers = countBy(visits, v => v.browser || "Desconhecido");
-  const devices = countBy(visits, v => v.device || "Desconhecido");
-  const referrers = countBy(visits, v => {
-    if (!v.referrer || v.referrer === "") return "Direto";
-    return v.referrer;
-  });
-  const sites = countBy(visits, v => v.siteId || "Sem site");
+  const pages = countBy(visits, v => v.path);
+  const countries = countBy(visits, v => v.country);
+  const browsers = countBy(visits, v => v.browser);
+  const devices = countBy(visits, v => v.device);
+  const referrers = countBy(visits, v => v.referrer || "Direto");
+  const sites = countBy(visits, v => v.siteId);
   const daily = countBy(visits, v => v.day);
 
   els.totalVisits.textContent = String(visits.length);
-  els.onlineNow.textContent = String(onlinePresence.length);
+  els.onlineNow.textContent = String(online.length);
   els.totalPages.textContent = String(Object.keys(pages).length);
   els.totalCountries.textContent = String(Object.keys(countries).length);
 
-  renderList(els.sitesList, topEntries(sites, 10), "Nenhum site encontrado");
-  renderList(els.pagesList, topEntries(pages, 10), "Nenhuma página encontrada");
-  renderList(els.referrersList, topEntries(referrers, 10), "Nenhum referrer encontrado");
-  renderList(els.browsersList, topEntries(browsers, 10), "Nenhum navegador encontrado");
-  renderList(els.devicesList, topEntries(devices, 10), "Nenhum dispositivo encontrado");
-  renderList(els.countriesList, topEntries(countries, 10), "Nenhum país encontrado");
+  renderList(els.sitesList, topEntries(sites));
+  renderList(els.pagesList, topEntries(pages));
+  renderList(els.referrersList, topEntries(referrers));
+  renderList(els.browsersList, topEntries(browsers));
+  renderList(els.devicesList, topEntries(devices));
+  renderList(els.countriesList, topEntries(countries));
 
   renderChart(days, daily);
+
+  console.log("Campanhas:", topEntries(countBy(visits, getCampaignLabel)));
+  console.log("Entrada:", topEntries(countBy(visits.filter(v => v.isEntrance), v => v.path)));
+  console.log("Saída:", topEntries(countBy(visits.filter(v => v.isExit), v => v.path)));
+  console.log("Online pages:", topEntries(countBy(online, v => v.path)));
+  console.log("Feed ao vivo:", allEvents);
 }
 
 async function loadAllData() {
-  try {
-    const visitsSnap = await getDocs(
-      query(collection(db, "analytics_visits"), orderBy("createdAt", "asc"))
-    );
+  const [visitsSnap, presenceSnap, eventsSnap] = await Promise.all([
+    getDocs(query(collection(db, "analytics_visits"), orderBy("createdAt", "asc"))),
+    getDocs(collection(db, "analytics_presence")),
+    getDocs(query(collection(db, "analytics_events"), orderBy("createdAt", "desc"), limit(30)))
+  ]);
 
-    const presenceSnap = await getDocs(collection(db, "analytics_presence"));
+  allVisits = visitsSnap.docs.map(d => d.data());
+  allPresence = presenceSnap.docs.map(d => d.data());
+  allEvents = eventsSnap.docs.map(d => d.data());
 
-    allVisits = visitsSnap.docs.map(doc => doc.data());
-    allPresence = presenceSnap.docs.map(doc => doc.data());
-
-    buildSiteFilter(allVisits);
-    updateDashboard();
-  } catch (error) {
-    console.error("Erro ao carregar analytics:", error);
-  }
+  buildSiteFilter(allVisits);
+  updateDashboard();
 }
 
 els.siteFilter.addEventListener("change", updateDashboard);
 els.periodFilter.addEventListener("change", updateDashboard);
 els.refreshBtn.addEventListener("click", loadAllData);
 
-loadAllData();
-setInterval(loadAllData, 30000);
+loadAllData().catch(console.error);
+setInterval(() => loadAllData().catch(console.error), 30000);

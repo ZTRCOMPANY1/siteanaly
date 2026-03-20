@@ -20,6 +20,8 @@
       --green: #39ffb6;
       --blue: #48a7ff;
       --purple: #a855f7;
+      --red: #ff6b81;
+      --yellow: #ffd166;
       --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
     }
 
@@ -36,7 +38,7 @@
     }
 
     .container {
-      max-width: 1450px;
+      max-width: 1500px;
       margin: 0 auto;
       padding: 24px;
     }
@@ -162,6 +164,13 @@
       margin-bottom: 16px;
     }
 
+    .triple-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
     .card h2,
     .card h3 {
       margin: 0 0 8px;
@@ -222,6 +231,44 @@
       text-align: center;
     }
 
+    .feed-list li {
+      display: block;
+      text-align: left;
+    }
+
+    .feed-item-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+
+    .feed-type {
+      font-size: 11px;
+      font-weight: bold;
+      color: var(--yellow);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .feed-time {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .feed-message {
+      font-size: 14px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .feed-meta {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
     .footer-note {
       color: var(--muted);
       text-align: center;
@@ -238,7 +285,8 @@
         grid-template-columns: 1fr;
       }
 
-      .double-grid {
+      .double-grid,
+      .triple-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -295,6 +343,8 @@
         </select>
 
         <button id="refreshBtn" type="button">Atualizar</button>
+        <button id="exportJsonBtn" type="button">Exportar JSON</button>
+        <button id="exportCsvBtn" type="button">Exportar CSV</button>
       </div>
     </div>
 
@@ -372,8 +422,50 @@
       </div>
     </div>
 
+    <div class="double-grid">
+      <div class="card">
+        <h3>Campanhas</h3>
+        <div class="sub">UTM source / campaign com mais visitas</div>
+        <ul id="campaignsList"></ul>
+      </div>
+
+      <div class="card">
+        <h3>Tipos de tráfego</h3>
+        <div class="sub">Direto, social, Google e externo</div>
+        <ul id="trafficTypesList"></ul>
+      </div>
+    </div>
+
+    <div class="double-grid">
+      <div class="card">
+        <h3>Top páginas de entrada</h3>
+        <div class="sub">Primeira página da sessão</div>
+        <ul id="entrancePagesList"></ul>
+      </div>
+
+      <div class="card">
+        <h3>Top páginas de saída</h3>
+        <div class="sub">Última página marcada antes de sair</div>
+        <ul id="exitPagesList"></ul>
+      </div>
+    </div>
+
+    <div class="double-grid">
+      <div class="card">
+        <h3>Páginas sendo vistas agora</h3>
+        <div class="sub">Presença online por rota</div>
+        <ul id="onlinePagesList"></ul>
+      </div>
+
+      <div class="card">
+        <h3>Últimos acessos em tempo real</h3>
+        <div class="sub">Feed recente de eventos</div>
+        <ul id="liveFeedList" class="feed-list"></ul>
+      </div>
+    </div>
+
     <div class="footer-note">
-      Dashboard multi-site com filtro por período, visitantes online, referrers, dispositivos e navegadores.
+      Dashboard multi-site com filtro por período, visitantes online, campanhas, tráfego, referrers, dispositivos, navegadores e feed ao vivo.
     </div>
   </div>
 
