@@ -84,16 +84,29 @@ function topEntries(map, limit = 10) {
 
 function renderList(el, items, empty = "Sem dados") {
   el.innerHTML = "";
+
   if (!items.length) {
-    el.innerHTML = `<li>${empty}</li>`;
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = empty;
+    el.appendChild(li);
     return;
   }
 
   for (const item of items) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${item.label}</span><strong>${item.value}</strong>`;
+    li.innerHTML = `<span>${escapeHtml(item.label)}</span><strong>${item.value}</strong>`;
     el.appendChild(li);
   }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function renderChart(dayLabels, visitsMap) {
@@ -108,30 +121,44 @@ function renderChart(dayLabels, visitsMap) {
     type: "line",
     data: {
       labels: dayLabels,
-      datasets: [{
-        label: "Visitas",
-        data: values,
-        borderWidth: 2,
-        tension: 0.25,
-        fill: false
-      }]
+      datasets: [
+        {
+          label: "Visitas",
+          data: values,
+          borderWidth: 2,
+          tension: 0.28,
+          fill: true,
+          backgroundColor: "rgba(57,255,182,0.08)",
+          borderColor: "#39ffb6",
+          pointBackgroundColor: "#39ffb6",
+          pointBorderColor: "#39ffb6",
+          pointRadius: 3,
+          pointHoverRadius: 5
+        }
+      ]
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         legend: {
-          labels: { color: "#ffffff" }
+          labels: {
+            color: "#eef4ff"
+          }
         }
       },
       scales: {
         x: {
           ticks: { color: "#9fb2d8" },
-          grid: { color: "rgba(255,255,255,0.07)" }
+          grid: { color: "rgba(255,255,255,0.06)" }
         },
         y: {
           beginAtZero: true,
-          ticks: { color: "#9fb2d8" },
-          grid: { color: "rgba(255,255,255,0.07)" }
+          ticks: {
+            color: "#9fb2d8",
+            precision: 0
+          },
+          grid: { color: "rgba(255,255,255,0.06)" }
         }
       }
     }
@@ -140,7 +167,7 @@ function renderChart(dayLabels, visitsMap) {
 
 function buildSiteFilter(visits) {
   const ids = [...new Set(visits.map(v => v.siteId).filter(Boolean))].sort();
-  const current = els.siteFilter.value;
+  const currentValue = els.siteFilter.value;
 
   els.siteFilter.innerHTML = `<option value="all">Todos os sites</option>`;
 
@@ -151,60 +178,61 @@ function buildSiteFilter(visits) {
     els.siteFilter.appendChild(opt);
   }
 
-  if (ids.includes(current)) {
-    els.siteFilter.value = current;
+  if (ids.includes(currentValue)) {
+    els.siteFilter.value = currentValue;
   }
 }
 
 function getFilteredVisits() {
-  const site = els.siteFilter.value;
+  const selectedSite = els.siteFilter.value;
   const period = Number(els.periodFilter.value);
-  const days = lastNDays(period);
-  const daySet = new Set(days);
+  const validDays = new Set(lastNDays(period));
 
-  return allVisits.filter(v => {
-    const matchSite = site === "all" ? true : v.siteId === site;
-    const matchDay = daySet.has(v.day);
+  return allVisits.filter(visit => {
+    const matchSite = selectedSite === "all" || visit.siteId === selectedSite;
+    const matchDay = validDays.has(visit.day);
     return matchSite && matchDay;
   });
 }
 
 function getFilteredPresence() {
-  const site = els.siteFilter.value;
+  const selectedSite = els.siteFilter.value;
   const cutoff = Date.now() - 70000;
 
-  return allPresence.filter(p => {
-    const matchSite = site === "all" ? true : p.siteId === site;
-    const alive = (p.updatedAtMs || 0) >= cutoff;
-    return matchSite && alive;
+  return allPresence.filter(item => {
+    const matchSite = selectedSite === "all" || item.siteId === selectedSite;
+    const isAlive = (item.updatedAtMs || 0) >= cutoff;
+    return matchSite && isAlive;
   });
 }
 
 function updateDashboard() {
   const visits = getFilteredVisits();
-  const presence = getFilteredPresence();
-  const period = Number(els.periodFilter.value);
-  const days = lastNDays(period);
+  const onlinePresence = getFilteredPresence();
+  const days = lastNDays(Number(els.periodFilter.value));
 
-  const pages = countBy(visits, v => v.path);
-  const countries = countBy(visits, v => v.country);
-  const browsers = countBy(visits, v => v.browser);
-  const devices = countBy(visits, v => v.device);
-  const referrers = countBy(visits, v => v.referrer || "Direto");
-  const sites = countBy(visits, v => v.siteId);
+  const pages = countBy(visits, v => v.path || "/");
+  const countries = countBy(visits, v => v.country || "Desconhecido");
+  const browsers = countBy(visits, v => v.browser || "Desconhecido");
+  const devices = countBy(visits, v => v.device || "Desconhecido");
+  const referrers = countBy(visits, v => {
+    if (!v.referrer || v.referrer === "") return "Direto";
+    return v.referrer;
+  });
+  const sites = countBy(visits, v => v.siteId || "Sem site");
   const daily = countBy(visits, v => v.day);
 
   els.totalVisits.textContent = String(visits.length);
-  els.onlineNow.textContent = String(presence.length);
+  els.onlineNow.textContent = String(onlinePresence.length);
   els.totalPages.textContent = String(Object.keys(pages).length);
   els.totalCountries.textContent = String(Object.keys(countries).length);
 
-  renderList(els.sitesList, topEntries(sites, 10), "Sem sites");
-  renderList(els.pagesList, topEntries(pages, 10), "Sem páginas");
-  renderList(els.referrersList, topEntries(referrers, 10), "Sem referrers");
-  renderList(els.browsersList, topEntries(browsers, 10), "Sem navegadores");
-  renderList(els.devicesList, topEntries(devices, 10), "Sem dispositivos");
-  renderList(els.countriesList, topEntries(countries, 10), "Sem países");
+  renderList(els.sitesList, topEntries(sites, 10), "Nenhum site encontrado");
+  renderList(els.pagesList, topEntries(pages, 10), "Nenhuma página encontrada");
+  renderList(els.referrersList, topEntries(referrers, 10), "Nenhum referrer encontrado");
+  renderList(els.browsersList, topEntries(browsers, 10), "Nenhum navegador encontrado");
+  renderList(els.devicesList, topEntries(devices, 10), "Nenhum dispositivo encontrado");
+  renderList(els.countriesList, topEntries(countries, 10), "Nenhum país encontrado");
 
   renderChart(days, daily);
 }
