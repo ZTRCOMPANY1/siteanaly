@@ -3,140 +3,245 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Painel Analytics Simples</title>
+  <title>Analytics Pro Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
       font-family: Arial, Helvetica, sans-serif;
-      background: #0b1020;
-      color: #fff;
+      background:
+        radial-gradient(circle at top, rgba(0,255,170,0.12), transparent 35%),
+        radial-gradient(circle at right, rgba(0,153,255,0.12), transparent 30%),
+        linear-gradient(180deg, #071019 0%, #04070d 100%);
+      color: #eaf2ff;
+      min-height: 100vh;
     }
 
-    .container {
-      max-width: 1200px;
+    .wrap {
+      max-width: 1400px;
       margin: 0 auto;
       padding: 24px;
     }
 
-    h1 {
-      margin: 0 0 20px;
-      font-size: 30px;
+    .topbar {
+      display: flex;
+      gap: 14px;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .title span {
+      color: #39ffb6;
+      text-shadow: 0 0 20px rgba(57,255,182,0.4);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    select, button {
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      outline: none;
     }
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(4, 1fr);
       gap: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .card {
-      background: rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.05);
       border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 18px;
+      border-radius: 20px;
       padding: 18px;
-      backdrop-filter: blur(8px);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.28);
+      backdrop-filter: blur(10px);
     }
 
-    .card h2, .card h3 {
-      margin: 0 0 12px;
-      font-size: 18px;
+    .label {
+      color: #97a7c6;
+      font-size: 13px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: .8px;
     }
 
-    .big-number {
-      font-size: 34px;
-      font-weight: bold;
-      color: #7dd3fc;
+    .value {
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
     }
 
-    .two-cols {
+    .accent {
+      color: #39ffb6;
+    }
+
+    .layout {
       display: grid;
-      grid-template-columns: 1.2fr 1fr;
+      grid-template-columns: 1.4fr 1fr;
       gap: 16px;
-      margin-top: 16px;
+      margin-bottom: 16px;
+    }
+
+    .side-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    h3 {
+      margin: 0 0 14px;
+      font-size: 18px;
     }
 
     ul {
       list-style: none;
-      padding: 0;
       margin: 0;
+      padding: 0;
     }
 
     li {
-      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
       background: rgba(255,255,255,0.04);
       border-radius: 12px;
       margin-bottom: 10px;
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
+      color: #dce7ff;
       word-break: break-word;
     }
 
     canvas {
       width: 100% !important;
-      max-height: 340px;
+      max-height: 360px;
     }
 
     .muted {
-      color: #b8c1d9;
-      font-size: 14px;
+      color: #95a6c9;
+      font-size: 13px;
+      margin-top: -4px;
+      margin-bottom: 14px;
     }
 
-    @media (max-width: 900px) {
-      .two-cols {
-        grid-template-columns: 1fr;
-      }
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: repeat(2, 1fr); }
+      .layout { grid-template-columns: 1fr; }
+      .side-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 680px) {
+      .grid { grid-template-columns: 1fr; }
+      .title { font-size: 24px; }
+      .value { font-size: 28px; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Painel de Analytics</h1>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">Analytics <span>Control</span></div>
+
+      <div class="controls">
+        <select id="siteFilter">
+          <option value="all">Todos os sites</option>
+        </select>
+
+        <select id="periodFilter">
+          <option value="7">Últimos 7 dias</option>
+          <option value="15">Últimos 15 dias</option>
+          <option value="30" selected>Últimos 30 dias</option>
+        </select>
+
+        <button id="refreshBtn">Atualizar</button>
+      </div>
+    </div>
 
     <div class="grid">
       <div class="card">
-        <h2>Total de visitas</h2>
-        <div class="big-number" id="totalVisits">0</div>
+        <div class="label">Visitas</div>
+        <div class="value" id="totalVisits">0</div>
       </div>
 
       <div class="card">
-        <h2>Visitantes hoje</h2>
-        <div class="big-number" id="todayVisits">0</div>
+        <div class="label">Visitantes online agora</div>
+        <div class="value accent" id="onlineNow">0</div>
       </div>
 
       <div class="card">
-        <h2>Total de páginas</h2>
-        <div class="big-number" id="totalPages">0</div>
+        <div class="label">Páginas acessadas</div>
+        <div class="value" id="totalPages">0</div>
       </div>
 
       <div class="card">
-        <h2>Total de países</h2>
-        <div class="big-number" id="totalCountries">0</div>
+        <div class="label">Países</div>
+        <div class="value" id="totalCountries">0</div>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Gráfico diário</h2>
-      <p class="muted">Visitas por dia</p>
-      <canvas id="dailyChart"></canvas>
-    </div>
-
-    <div class="two-cols">
+    <div class="layout">
       <div class="card">
-        <h3>Páginas mais acessadas</h3>
-        <ul id="topPages"></ul>
+        <h3>Gráfico diário</h3>
+        <div class="muted">Visitas por dia no período selecionado</div>
+        <canvas id="chart"></canvas>
       </div>
 
-      <div class="card">
-        <h3>Países</h3>
-        <ul id="topCountries"></ul>
+      <div class="side-grid">
+        <div class="card">
+          <h3>Sites</h3>
+          <ul id="sitesList"></ul>
+        </div>
+
+        <div class="card">
+          <h3>Top páginas</h3>
+          <ul id="pagesList"></ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <div class="side-grid">
+        <div class="card">
+          <h3>Top referrers</h3>
+          <ul id="referrersList"></ul>
+        </div>
+
+        <div class="card">
+          <h3>Navegadores</h3>
+          <ul id="browsersList"></ul>
+        </div>
+      </div>
+
+      <div class="side-grid">
+        <div class="card">
+          <h3>Dispositivos</h3>
+          <ul id="devicesList"></ul>
+        </div>
+
+        <div class="card">
+          <h3>Países</h3>
+          <ul id="countriesList"></ul>
+        </div>
       </div>
     </div>
   </div>
