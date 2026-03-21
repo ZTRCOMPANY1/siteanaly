@@ -1,58 +1,33 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import {
   getFirestore,
-  addDoc,
   collection,
-  doc,
-  setDoc,
-  updateDoc,
+  addDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js";
-import {
-  formatDate,
-  getBrowser,
-  getDeviceType,
-  getTrafficType,
-  getUTM
-} from "./utils.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCz9FnU8nW8WtDW_OWRNavN9MMWynGp69w",
+  authDomain: "analy-28eb7.firebaseapp.com",
+  projectId: "analy-28eb7",
+  storageBucket: "analy-28eb7.firebasestorage.app",
+  messagingSenderId: "790780925231",
+  appId: "1:790780925231:web:898c96d72de20b12eefdda",
+  measurementId: "G-4B549F84EW"
+};
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const SITE_CONFIG = window.SIMPLE_ANALYTICS || {};
-const siteId = SITE_CONFIG.siteId || location.hostname;
-const allowedDomains = SITE_CONFIG.allowedDomains || [];
-const heartbeatIntervalMs = 30000;
-const minVisibleMs = 4000;
-const pageStart = Date.now();
-
-let heartbeatTimer = null;
-let lastVisitDocId = null;
-
-function isAllowedDomain() {
-  if (!allowedDomains.length) return true;
-  return allowedDomains.includes(location.hostname);
+function formatDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-function isBotOrFake() {
-  const ua = navigator.userAgent || "";
-  if (navigator.webdriver) return true;
-  if (/bot|spider|crawl|headless|slurp|preview|facebookexternalhit|whatsapp|discord/i.test(ua)) return true;
-  return false;
-}
-
-function getSessionId() {
-  let sessionId = localStorage.getItem("sa_session_id");
-  if (!sessionId) {
-    sessionId = crypto.randomUUID();
-    localStorage.setItem("sa_session_id", sessionId);
-  }
-  return sessionId;
-}
-
-function getVisitKey() {
-  return `sa_visit_${siteId}_${location.pathname}_${formatDate()}_${getSessionId()}`;
+function getSessionKey() {
+  return `analytics_visit_${location.pathname}`;
 }
 
 async function getCountry() {
@@ -65,116 +40,34 @@ async function getCountry() {
   }
 }
 
-async function addRealtimeEvent(type, message, extra = {}) {
-  await addDoc(collection(db, "analytics_events"), {
-    siteId,
-    type,
-    message,
-    path: location.pathname || "/",
-    referrer: document.referrer || "",
-    sessionId: getSessionId(),
-    createdAt: serverTimestamp(),
-    ...extra
-  });
-}
-
-async function registerVisit() {
-  if (isBotOrFake()) return;
-  if (!isAllowedDomain()) return;
-  if (document.visibilityState !== "visible") return;
-  if (Date.now() - pageStart < minVisibleMs) return;
-
-  const visitKey = getVisitKey();
-  if (sessionStorage.getItem(visitKey)) return;
-  sessionStorage.setItem(visitKey, "1");
-
-  const country = await getCountry();
-  const referrer = document.referrer || "";
-  const trafficType = getTrafficType(referrer);
-  const utm = getUTM();
-
-  const visitRef = await addDoc(collection(db, "analytics_visits"), {
-    siteId,
-    hostname: location.hostname,
-    path: location.pathname || "/",
-    title: document.title || "",
-    url: location.href,
-    referrer,
-    trafficType,
-    country,
-    browser: getBrowser(),
-    device: getDeviceType(),
-    sessionId: getSessionId(),
-    isEntrance: !sessionStorage.getItem(`sa_seen_session_${getSessionId()}`),
-    isExit: false,
-    utm,
-    day: formatDate(),
-    createdAt: serverTimestamp()
-  });
-
-  lastVisitDocId = visitRef.id;
-  sessionStorage.setItem(`sa_seen_session_${getSessionId()}`, "1");
-
-  await addRealtimeEvent("page_view", `Abriu ${location.pathname}`, {
-    country,
-    trafficType,
-    utmSource: utm.source || "",
-    utmCampaign: utm.campaign || "",
-    referrerLabel: referrer || "Direto"
-  });
-}
-
-async function updatePresence() {
-  if (isBotOrFake()) return;
-  if (!isAllowedDomain()) return;
-  if (document.visibilityState !== "visible") return;
-
-  const country = await getCountry();
-  await setDoc(doc(db, "analytics_presence", `${siteId}_${getSessionId()}`), {
-    siteId,
-    sessionId: getSessionId(),
-    path: location.pathname || "/",
-    country,
-    referrer: document.referrer || "",
-    updatedAtMs: Date.now(),
-    updatedAt: serverTimestamp()
-  }, { merge: true });
-}
-
-function startHeartbeat() {
-  stopHeartbeat();
-  updatePresence().catch(console.error);
-  heartbeatTimer = setInterval(() => {
-    updatePresence().catch(console.error);
-  }, heartbeatIntervalMs);
-}
-
-function stopHeartbeat() {
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-  heartbeatTimer = null;
-}
-
-window.addEventListener("load", () => {
-  setTimeout(() => {
-    registerVisit().catch(console.error);
-    startHeartbeat();
-  }, minVisibleMs);
-});
-
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
-    startHeartbeat();
-  } else {
-    stopHeartbeat();
-  }
-});
-
-window.addEventListener("beforeunload", async () => {
+async function trackVisit() {
   try {
-    if (lastVisitDocId) {
-      await updateDoc(doc(db, "analytics_visits", lastVisitDocId), {
-        isExit: true
-      });
+    const sessionKey = getSessionKey();
+
+    if (sessionStorage.getItem(sessionKey)) {
+      return;
     }
-  } catch {}
-});
+
+    sessionStorage.setItem(sessionKey, "1");
+
+    const country = await getCountry();
+
+    await addDoc(collection(db, "analytics_visits"), {
+      path: location.pathname || "/",
+      url: location.href,
+      title: document.title || "",
+      host: location.hostname || "",
+      referrer: document.referrer || "",
+      country,
+      userAgent: navigator.userAgent,
+      language: navigator.language || "",
+      screen: `${window.screen.width}x${window.screen.height}`,
+      date: formatDate(new Date()),
+      createdAt: serverTimestamp()
+    });
+  } catch (error) {
+    console.error("Erro ao registrar visita:", error);
+  }
+}
+
+trackVisit();

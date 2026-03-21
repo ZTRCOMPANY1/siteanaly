@@ -4,229 +4,152 @@ import {
   collection,
   getDocs,
   query,
-  orderBy,
-  limit
+  orderBy
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js";
-import { escapeHtml } from "./utils.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCz9FnU8nW8WtDW_OWRNavN9MMWynGp69w",
+  authDomain: "analy-28eb7.firebaseapp.com",
+  projectId: "analy-28eb7",
+  storageBucket: "analy-28eb7.firebasestorage.app",
+  messagingSenderId: "790780925231",
+  appId: "1:790780925231:web:898c96d72de20b12eefdda",
+  measurementId: "G-4B549F84EW"
+};
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const userProfile = JSON.parse(localStorage.getItem("sa_user_profile") || "null");
-const allowedSites = userProfile?.sites || [];
+const totalVisitsEl = document.getElementById("totalVisits");
+const todayVisitsEl = document.getElementById("todayVisits");
+const totalPagesEl = document.getElementById("totalPages");
+const totalCountriesEl = document.getElementById("totalCountries");
+const topPagesEl = document.getElementById("topPages");
+const topCountriesEl = document.getElementById("topCountries");
 
-function canSeeSite(siteId) {
-  if (!userProfile) return false;
-  if (userProfile.role === "owner") return true;
-  return allowedSites.includes(siteId);
-}
-
-function getEl(id) {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`Elemento ${id} não encontrado`);
-  return el;
-}
-
-const els = {
-  siteFilter: getEl("siteFilter"),
-  periodFilter: getEl("periodFilter"),
-  refreshBtn: getEl("refreshBtn"),
-  totalVisits: getEl("totalVisits"),
-  onlineNow: getEl("onlineNow"),
-  totalPages: getEl("totalPages"),
-  totalCountries: getEl("totalCountries"),
-  sitesList: getEl("sitesList"),
-  pagesList: getEl("pagesList"),
-  referrersList: getEl("referrersList"),
-  browsersList: getEl("browsersList"),
-  devicesList: getEl("devicesList"),
-  countriesList: getEl("countriesList"),
-  chartCanvas: getEl("chart")
-};
-
-let allVisits = [];
-let allPresence = [];
-let allEvents = [];
 let chartInstance = null;
 
-function dateToYMD(date) {
+function formatDate(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
-function lastNDays(days) {
-  const arr = [];
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
+function renderList(element, items, emptyText) {
+  element.innerHTML = "";
 
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    arr.push(dateToYMD(d));
-  }
-
-  return arr;
-}
-
-function countBy(items, fn) {
-  const map = {};
-  for (const item of items) {
-    const key = fn(item) || "Desconhecido";
-    map[key] = (map[key] || 0) + 1;
-  }
-  return map;
-}
-
-function topEntries(map, limitN = 10) {
-  return Object.entries(map)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limitN)
-    .map(([label, value]) => ({ label, value }));
-}
-
-function renderList(el, items, empty = "Sem dados") {
-  el.innerHTML = "";
   if (!items.length) {
-    el.innerHTML = `<li class="empty">${empty}</li>`;
+    element.innerHTML = `<li>${emptyText}</li>`;
     return;
   }
 
   for (const item of items) {
     const li = document.createElement("li");
-    li.innerHTML = `<span>${escapeHtml(item.label)}</span><strong>${item.value}</strong>`;
-    el.appendChild(li);
+    li.innerHTML = `<span>${item.label}</span><strong>${item.value}</strong>`;
+    element.appendChild(li);
   }
 }
 
-function buildSiteFilter(visits) {
-  const siteIds = [...new Set(visits.map(v => v.siteId).filter(Boolean))]
-    .filter(canSeeSite)
-    .sort();
+function buildDailyChart(dailyMap) {
+  const labels = Object.keys(dailyMap).sort();
+  const values = labels.map(label => dailyMap[label]);
 
-  const current = els.siteFilter.value;
-  els.siteFilter.innerHTML = `<option value="all">Todos os sites</option>`;
+  const ctx = document.getElementById("dailyChart").getContext("2d");
 
-  for (const siteId of siteIds) {
-    const opt = document.createElement("option");
-    opt.value = siteId;
-    opt.textContent = siteId;
-    els.siteFilter.appendChild(opt);
+  if (chartInstance) {
+    chartInstance.destroy();
   }
-
-  if (siteIds.includes(current)) els.siteFilter.value = current;
-}
-
-function getFilteredVisits() {
-  const selectedSite = els.siteFilter.value;
-  const validDays = new Set(lastNDays(Number(els.periodFilter.value)));
-
-  return allVisits.filter(v => {
-    if (!canSeeSite(v.siteId)) return false;
-    if (selectedSite !== "all" && v.siteId !== selectedSite) return false;
-    return validDays.has(v.day);
-  });
-}
-
-function getFilteredPresence() {
-  const selectedSite = els.siteFilter.value;
-  const cutoff = Date.now() - 70000;
-
-  return allPresence.filter(p => {
-    if (!canSeeSite(p.siteId)) return false;
-    if (selectedSite !== "all" && p.siteId !== selectedSite) return false;
-    return (p.updatedAtMs || 0) >= cutoff;
-  });
-}
-
-function getCampaignLabel(v) {
-  if (v.utm?.campaign) {
-    return `${v.utm.source || "sem-source"} / ${v.utm.campaign}`;
-  }
-  return "Sem campanha";
-}
-
-function renderChart(days, dailyMap) {
-  const ctx = els.chartCanvas.getContext("2d");
-  const values = days.map(day => dailyMap[day] || 0);
-
-  if (chartInstance) chartInstance.destroy();
 
   chartInstance = new Chart(ctx, {
     type: "line",
     data: {
-      labels: days,
-      datasets: [{
-        label: "Visitas",
-        data: values,
-        borderColor: "#39ffb6",
-        backgroundColor: "rgba(57,255,182,0.08)",
-        fill: true,
-        borderWidth: 2,
-        tension: 0.28
-      }]
+      labels,
+      datasets: [
+        {
+          label: "Visitas",
+          data: values,
+          tension: 0.25,
+          borderWidth: 2,
+          fill: false
+        }
+      ]
     },
     options: {
       responsive: true,
-      maintainAspectRatio: false
+      plugins: {
+        legend: {
+          labels: {
+            color: "#fff"
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#cbd5e1" },
+          grid: { color: "rgba(255,255,255,0.08)" }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: "#cbd5e1" },
+          grid: { color: "rgba(255,255,255,0.08)" }
+        }
+      }
     }
   });
 }
 
-function updateDashboard() {
-  const visits = getFilteredVisits();
-  const online = getFilteredPresence();
-  const days = lastNDays(Number(els.periodFilter.value));
+async function loadAnalytics() {
+  const visitsRef = collection(db, "analytics_visits");
+  const q = query(visitsRef, orderBy("createdAt", "asc"));
+  const snapshot = await getDocs(q);
 
-  const pages = countBy(visits, v => v.path);
-  const countries = countBy(visits, v => v.country);
-  const browsers = countBy(visits, v => v.browser);
-  const devices = countBy(visits, v => v.device);
-  const referrers = countBy(visits, v => v.referrer || "Direto");
-  const sites = countBy(visits, v => v.siteId);
-  const daily = countBy(visits, v => v.day);
+  const visits = [];
+  snapshot.forEach(doc => visits.push(doc.data()));
 
-  els.totalVisits.textContent = String(visits.length);
-  els.onlineNow.textContent = String(online.length);
-  els.totalPages.textContent = String(Object.keys(pages).length);
-  els.totalCountries.textContent = String(Object.keys(countries).length);
+  const totalVisits = visits.length;
+  const today = formatDate(new Date());
 
-  renderList(els.sitesList, topEntries(sites));
-  renderList(els.pagesList, topEntries(pages));
-  renderList(els.referrersList, topEntries(referrers));
-  renderList(els.browsersList, topEntries(browsers));
-  renderList(els.devicesList, topEntries(devices));
-  renderList(els.countriesList, topEntries(countries));
+  const pageCount = {};
+  const countryCount = {};
+  const dailyCount = {};
 
-  renderChart(days, daily);
+  let todayVisits = 0;
 
-  console.log("Campanhas:", topEntries(countBy(visits, getCampaignLabel)));
-  console.log("Entrada:", topEntries(countBy(visits.filter(v => v.isEntrance), v => v.path)));
-  console.log("Saída:", topEntries(countBy(visits.filter(v => v.isExit), v => v.path)));
-  console.log("Online pages:", topEntries(countBy(online, v => v.path)));
-  console.log("Feed ao vivo:", allEvents);
+  for (const visit of visits) {
+    const page = visit.path || "/";
+    const country = visit.country || "Desconhecido";
+    const day = visit.date || "Sem data";
+
+    pageCount[page] = (pageCount[page] || 0) + 1;
+    countryCount[country] = (countryCount[country] || 0) + 1;
+    dailyCount[day] = (dailyCount[day] || 0) + 1;
+
+    if (day === today) {
+      todayVisits++;
+    }
+  }
+
+  const topPages = Object.entries(pageCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([label, value]) => ({ label, value }));
+
+  const topCountries = Object.entries(countryCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([label, value]) => ({ label, value }));
+
+  totalVisitsEl.textContent = totalVisits;
+  todayVisitsEl.textContent = todayVisits;
+  totalPagesEl.textContent = Object.keys(pageCount).length;
+  totalCountriesEl.textContent = Object.keys(countryCount).length;
+
+  renderList(topPagesEl, topPages, "Nenhuma página registrada ainda.");
+  renderList(topCountriesEl, topCountries, "Nenhum país registrado ainda.");
+  buildDailyChart(dailyCount);
 }
 
-async function loadAllData() {
-  const [visitsSnap, presenceSnap, eventsSnap] = await Promise.all([
-    getDocs(query(collection(db, "analytics_visits"), orderBy("createdAt", "asc"))),
-    getDocs(collection(db, "analytics_presence")),
-    getDocs(query(collection(db, "analytics_events"), orderBy("createdAt", "desc"), limit(30)))
-  ]);
-
-  allVisits = visitsSnap.docs.map(d => d.data());
-  allPresence = presenceSnap.docs.map(d => d.data());
-  allEvents = eventsSnap.docs.map(d => d.data());
-
-  buildSiteFilter(allVisits);
-  updateDashboard();
-}
-
-els.siteFilter.addEventListener("change", updateDashboard);
-els.periodFilter.addEventListener("change", updateDashboard);
-els.refreshBtn.addEventListener("click", loadAllData);
-
-loadAllData().catch(console.error);
-setInterval(() => loadAllData().catch(console.error), 30000);
+loadAnalytics().catch(err => {
+  console.error("Erro ao carregar analytics:", err);
+});

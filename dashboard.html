@@ -3,469 +3,141 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Analytics Control Dashboard</title>
+  <title>Painel Analytics Simples</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * {
       box-sizing: border-box;
     }
 
-    :root {
-      --bg-1: #050816;
-      --bg-2: #0a1024;
-      --card: rgba(255, 255, 255, 0.06);
-      --card-border: rgba(255, 255, 255, 0.09);
-      --text: #eef4ff;
-      --muted: #94a6c9;
-      --green: #39ffb6;
-      --blue: #48a7ff;
-      --purple: #a855f7;
-      --red: #ff6b81;
-      --yellow: #ffd166;
-      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-    }
-
     body {
       margin: 0;
       font-family: Arial, Helvetica, sans-serif;
-      color: var(--text);
-      min-height: 100vh;
-      background:
-        radial-gradient(circle at top left, rgba(72,167,255,0.12), transparent 30%),
-        radial-gradient(circle at top right, rgba(57,255,182,0.10), transparent 28%),
-        radial-gradient(circle at bottom center, rgba(168,85,247,0.10), transparent 32%),
-        linear-gradient(180deg, var(--bg-2), var(--bg-1));
+      background: #0b1020;
+      color: #fff;
     }
 
     .container {
-      max-width: 1500px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 24px;
     }
 
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 24px;
+    h1 {
+      margin: 0 0 20px;
+      font-size: 30px;
     }
 
-    .brand {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .brand small {
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 2px;
-      font-size: 12px;
-    }
-
-    .brand h1 {
-      margin: 0;
-      font-size: 32px;
-      font-weight: 800;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-    }
-
-    .brand h1 span {
-      color: var(--green);
-      text-shadow: 0 0 20px rgba(57,255,182,0.35);
-    }
-
-    .controls {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    select,
-    button {
-      appearance: none;
-      border: 1px solid var(--card-border);
-      background: rgba(255,255,255,0.06);
-      color: var(--text);
-      padding: 12px 14px;
-      border-radius: 14px;
-      font-size: 14px;
-      min-width: 150px;
-      outline: none;
-      transition: 0.2s ease;
-      box-shadow: var(--shadow);
-    }
-
-    button {
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    select:focus,
-    button:hover {
-      border-color: rgba(57,255,182,0.35);
-      transform: translateY(-1px);
-    }
-
-    .stats-grid {
+    .grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 16px;
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
 
     .card {
-      background: var(--card);
-      border: 1px solid var(--card-border);
-      border-radius: 22px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
       padding: 18px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25);
     }
 
-    .stat-label {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 10px;
-    }
-
-    .stat-value {
-      font-size: 34px;
-      font-weight: 800;
-      line-height: 1;
-    }
-
-    .stat-value.green {
-      color: var(--green);
-      text-shadow: 0 0 16px rgba(57,255,182,0.22);
-    }
-
-    .main-grid {
-      display: grid;
-      grid-template-columns: 1.35fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .stack {
-      display: grid;
-      gap: 16px;
-    }
-
-    .double-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .triple-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-
-    .card h2,
-    .card h3 {
-      margin: 0 0 8px;
+    .card h2, .card h3 {
+      margin: 0 0 12px;
       font-size: 18px;
     }
 
-    .card .sub {
-      color: var(--muted);
-      font-size: 13px;
-      margin-bottom: 14px;
+    .big-number {
+      font-size: 34px;
+      font-weight: bold;
+      color: #7dd3fc;
     }
 
-    .chart-wrap {
-      position: relative;
-      min-height: 360px;
-    }
-
-    canvas {
-      width: 100% !important;
-      max-height: 360px !important;
+    .two-cols {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
     }
 
     ul {
       list-style: none;
-      margin: 0;
       padding: 0;
-      display: grid;
-      gap: 10px;
+      margin: 0;
     }
 
     li {
+      padding: 10px 12px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
       gap: 12px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.05);
-      color: #dfe9ff;
       word-break: break-word;
     }
 
-    li span:first-child {
-      flex: 1;
-      min-width: 0;
+    canvas {
+      width: 100% !important;
+      max-height: 340px;
     }
 
-    li strong {
-      color: var(--green);
+    .muted {
+      color: #b8c1d9;
       font-size: 14px;
-      white-space: nowrap;
     }
 
-    .empty {
-      color: var(--muted);
-      justify-content: center;
-      text-align: center;
-    }
-
-    .feed-list li {
-      display: block;
-      text-align: left;
-    }
-
-    .feed-item-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 6px;
-      align-items: center;
-    }
-
-    .feed-type {
-      font-size: 11px;
-      font-weight: bold;
-      color: var(--yellow);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .feed-time {
-      font-size: 12px;
-      color: var(--muted);
-    }
-
-    .feed-message {
-      font-size: 14px;
-      color: var(--text);
-      margin-bottom: 6px;
-    }
-
-    .feed-meta {
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    .footer-note {
-      color: var(--muted);
-      text-align: center;
-      font-size: 12px;
-      margin-top: 18px;
-    }
-
-    @media (max-width: 1150px) {
-      .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .main-grid {
+    @media (max-width: 900px) {
+      .two-cols {
         grid-template-columns: 1fr;
-      }
-
-      .double-grid,
-      .triple-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 700px) {
-      .container {
-        padding: 16px;
-      }
-
-      .brand h1 {
-        font-size: 24px;
-      }
-
-      .stats-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .controls {
-        width: 100%;
-      }
-
-      .controls select,
-      .controls button {
-        width: 100%;
-      }
-
-      .stat-value {
-        font-size: 28px;
-      }
-
-      .chart-wrap {
-        min-height: 280px;
       }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="topbar">
-      <div class="brand">
-        <small>Multi Site Analytics</small>
-        <h1>Analytics <span>Control</span></h1>
+    <h1>Painel de Analytics</h1>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Total de visitas</h2>
+        <div class="big-number" id="totalVisits">0</div>
       </div>
 
-      <div class="controls">
-        <select id="siteFilter">
-          <option value="all">Todos os sites</option>
-        </select>
+      <div class="card">
+        <h2>Visitantes hoje</h2>
+        <div class="big-number" id="todayVisits">0</div>
+      </div>
 
-        <select id="periodFilter">
-          <option value="7">Últimos 7 dias</option>
-          <option value="15">Últimos 15 dias</option>
-          <option value="30" selected>Últimos 30 dias</option>
-        </select>
+      <div class="card">
+        <h2>Total de páginas</h2>
+        <div class="big-number" id="totalPages">0</div>
+      </div>
 
-        <button id="refreshBtn" type="button">Atualizar</button>
-        <button id="exportJsonBtn" type="button">Exportar JSON</button>
-        <button id="exportCsvBtn" type="button">Exportar CSV</button>
+      <div class="card">
+        <h2>Total de países</h2>
+        <div class="big-number" id="totalCountries">0</div>
       </div>
     </div>
 
-    <div class="stats-grid">
-      <div class="card">
-        <div class="stat-label">Visitas</div>
-        <div class="stat-value" id="totalVisits">0</div>
-      </div>
-
-      <div class="card">
-        <div class="stat-label">Visitantes online agora</div>
-        <div class="stat-value green" id="onlineNow">0</div>
-      </div>
-
-      <div class="card">
-        <div class="stat-label">Páginas acessadas</div>
-        <div class="stat-value" id="totalPages">0</div>
-      </div>
-
-      <div class="card">
-        <div class="stat-label">Países</div>
-        <div class="stat-value" id="totalCountries">0</div>
-      </div>
+    <div class="card">
+      <h2>Gráfico diário</h2>
+      <p class="muted">Visitas por dia</p>
+      <canvas id="dailyChart"></canvas>
     </div>
 
-    <div class="main-grid">
+    <div class="two-cols">
       <div class="card">
-        <h2>Gráfico diário</h2>
-        <div class="sub">Visitas por dia no período selecionado</div>
-        <div class="chart-wrap">
-          <canvas id="chart"></canvas>
-        </div>
-      </div>
-
-      <div class="stack">
-        <div class="card">
-          <h3>Sites</h3>
-          <div class="sub">Sites monitorados no período</div>
-          <ul id="sitesList"></ul>
-        </div>
-
-        <div class="card">
-          <h3>Top páginas</h3>
-          <div class="sub">Páginas mais acessadas</div>
-          <ul id="pagesList"></ul>
-        </div>
-      </div>
-    </div>
-
-    <div class="double-grid">
-      <div class="card">
-        <h3>Top referrers</h3>
-        <div class="sub">Origem das visitas</div>
-        <ul id="referrersList"></ul>
-      </div>
-
-      <div class="card">
-        <h3>Navegadores</h3>
-        <div class="sub">Distribuição por browser</div>
-        <ul id="browsersList"></ul>
-      </div>
-    </div>
-
-    <div class="double-grid">
-      <div class="card">
-        <h3>Dispositivos</h3>
-        <div class="sub">Desktop, mobile e tablet</div>
-        <ul id="devicesList"></ul>
+        <h3>Páginas mais acessadas</h3>
+        <ul id="topPages"></ul>
       </div>
 
       <div class="card">
         <h3>Países</h3>
-        <div class="sub">Localização dos acessos</div>
-        <ul id="countriesList"></ul>
+        <ul id="topCountries"></ul>
       </div>
-    </div>
-
-    <div class="double-grid">
-      <div class="card">
-        <h3>Campanhas</h3>
-        <div class="sub">UTM source / campaign com mais visitas</div>
-        <ul id="campaignsList"></ul>
-      </div>
-
-      <div class="card">
-        <h3>Tipos de tráfego</h3>
-        <div class="sub">Direto, social, Google e externo</div>
-        <ul id="trafficTypesList"></ul>
-      </div>
-    </div>
-
-    <div class="double-grid">
-      <div class="card">
-        <h3>Top páginas de entrada</h3>
-        <div class="sub">Primeira página da sessão</div>
-        <ul id="entrancePagesList"></ul>
-      </div>
-
-      <div class="card">
-        <h3>Top páginas de saída</h3>
-        <div class="sub">Última página marcada antes de sair</div>
-        <ul id="exitPagesList"></ul>
-      </div>
-    </div>
-
-    <div class="double-grid">
-      <div class="card">
-        <h3>Páginas sendo vistas agora</h3>
-        <div class="sub">Presença online por rota</div>
-        <ul id="onlinePagesList"></ul>
-      </div>
-
-      <div class="card">
-        <h3>Últimos acessos em tempo real</h3>
-        <div class="sub">Feed recente de eventos</div>
-        <ul id="liveFeedList" class="feed-list"></ul>
-      </div>
-    </div>
-
-    <div class="footer-note">
-      Dashboard multi-site com filtro por período, visitantes online, campanhas, tráfego, referrers, dispositivos, navegadores e feed ao vivo.
     </div>
   </div>
 
